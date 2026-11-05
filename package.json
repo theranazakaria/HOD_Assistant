@@ -1,0 +1,8 @@
+{
+  "name": "cit-hod-office-desk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CIT department office desk for GCT Kamalia",
+  "engines": { "node": ">=18" },
+  "dependencies": { "@neondatabase/serverless": "^0.10.4" }
+}

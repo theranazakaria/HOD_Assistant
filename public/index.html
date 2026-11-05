@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CIT HOD Office Desk | GCT Kamalia</title>
+<meta name="description" content="Staff task, leave and records system for the Computer Information Technology department, Government College of Technology, Kamalia.">
+<meta name="robots" content="noindex">
+<style>
+:root{--ink:#12304a;--bg:#f4f7f9;--card:#fff;--line:#d3dde4;--mute:#5a6b79;--teal:#0d7a6b;--tx:#fff;--red:#b3261e;--amb:#b26a00;--soft:#e6f1ef;color-scheme:light}
+@media (prefers-color-scheme:dark){:root{--ink:#e6eef5;--bg:#0e1a24;--card:#152634;--line:#2a4358;--mute:#9db0bf;--teal:#3cc0ac;--tx:#0e1a24;--red:#ff8a80;--amb:#f0b44c;--soft:#173229;color-scheme:dark}}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
+h1,h2,h3{margin:0 0 .6rem;line-height:1.2}h2{font-size:1.15rem}
+.wrap{max-width:1100px;margin:0 auto;padding:0 1rem 3rem}
+.top{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;padding:1rem 0 .4rem}
+.top h1{font-size:1.4rem;margin:0}.sub{color:var(--mute);font-size:.9rem}
+nav{display:flex;gap:.3rem;flex-wrap:wrap;border-bottom:1px solid var(--line);margin:.5rem 0 1rem}
+nav button{background:none;border:0;border-bottom:3px solid transparent;padding:.6rem .8rem;font:600 .93rem inherit;font-family:inherit;color:var(--mute);cursor:pointer}
+nav button[aria-current="page"]{color:var(--ink);border-bottom-color:var(--teal)}
+:focus-visible{outline:3px solid #f0b44c;outline-offset:2px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem;margin-bottom:1rem}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(10rem,1fr));gap:.7rem}
+label{display:block;font-size:.85rem;font-weight:600;margin-bottom:.2rem}
+input,select,textarea{width:100%;padding:.55rem .6rem;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);font:inherit}
+textarea{min-height:4rem}
+.btn{background:var(--teal);color:var(--tx);border:0;border-radius:7px;padding:.55rem .95rem;font:600 .92rem inherit;font-family:inherit;cursor:pointer}
+.btn.g{background:none;color:var(--ink);border:1px solid var(--line)}.btn.s{padding:.28rem .6rem;font-size:.82rem}
+.acts{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.7rem}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(8.5rem,1fr));gap:.7rem;margin-bottom:1rem}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.8rem}.stat b{font-size:1.6rem;display:block}.stat span{color:var(--mute);font-size:.85rem}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.92rem}
+th,td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line);vertical-align:top}th{font-size:.8rem;color:var(--mute)}
+.tag{display:inline-block;padding:.05rem .55rem;border-radius:99px;font-size:.78rem;font-weight:600;background:var(--soft)}
+.od{color:var(--red);font-weight:600}.hi{color:var(--amb);font-weight:600}.note{color:var(--mute);font-size:.88rem}.empty{color:var(--mute)}
+.chk label{display:inline-flex;align-items:center;gap:.3rem;font-weight:500;margin:0 .8rem .3rem 0}.chk input{width:auto}
+.err{color:var(--red);margin:.5rem 0}
+.login{max-width:22rem;margin:12vh auto}
+.ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9;padding:1rem}.ov img{max-width:100%;max-height:90vh;border-radius:8px}
+.tk{border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.7rem}
+#pa{display:none}
+@media print{body>.wrap,.ov{display:none!important}#pa{display:block;padding:1rem;color:#000;background:#fff}#pa table{font-size:11px}#pa th,#pa td{border:1px solid #999}}
+</style></head><body>
+<div class="wrap" id="app"></div><div id="pa"></div>
+<script>
+(function(){
+var DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],ST=["Pending","In progress","Done"];
+var me=null,tab="",U=[],T=[],A=[],L=[],M=[],pend={},msg="",rep="tasks",$=function(i){return document.getElementById(i)};
+function esc(s){var d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML}
+function today(){var d=new Date(),m=d.getMonth()+1,x=d.getDate();return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(x<10?"0":"")+x}
+function fmt(s){if(!s)return"";var d=new Date(s+"T00:00:00");return DAYS[d.getDay()]+" "+d.getDate()+" "+d.toLocaleString("en",{month:"short"})+" "+d.getFullYear()}
+function ndays(a,b){return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/864e5)+1}
+function adm(){return me&&me.role!=="staff"}
+function stf(){return U.filter(function(u){return u.role==="staff"&&u.active})}
+function onLeave(id,d){return L.some(function(l){return l.user_id===id&&l.status==="Approved"&&l.from_d<=d&&d<=l.to_d})}
+function avail(u,d){if(!d)return true;var w=new Date(d+"T00:00:00").getDay();return String(u.days).split(",").indexOf(String(w))>=0&&!onLeave(u.id,d)}
+function api(a,d){var o=Object.assign({a:a},d||{});return fetch("/api",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)}).then(function(r){return r.json().catch(function(){return{e:"Server error."}}).then(function(j){if(!r.ok){if(r.status===401&&a!=="login"&&a!=="me"){me=null;draw()}throw new Error(j.e||"Error")}return j})})}
+function load(){var p=[api("tasks.list"),api("leave.list")];if(adm())p.push(api("users.list"),api("mis.list"));return Promise.all(p).then(function(r){T=r[0].tasks;A=r[0].as;L=r[1].leaves;if(adm()){U=r[2].users;M=r[3].mis}})}
+function act(p,ok){msg="";return p.then(function(){return load()}).then(function(){if(ok)ok();draw()}).catch(function(e){msg=e.message;draw()})}
+function tabs(){return adm()?[["dash","Dashboard"],["tasks","Tasks"],["people","Staff & accounts"],["leave","Leave"],["mis","Misconduct"],["rep","Reports"]]:[["mine","My tasks"],["leave","My leave"]]}
+
+function draw(){
+var a=$("app");
+if(!me){a.innerHTML='<div class="card login"><h1>CIT Office Desk</h1><p class="sub">Government College of Technology, Kamalia</p><label for="lu">Username</label><input id="lu" autocomplete="username"><label for="lp" style="margin-top:.6rem">Password</label><input id="lp" type="password" autocomplete="current-password"><div class="err" id="le">'+esc(msg)+'</div><button class="btn" data-a="login">Sign in</button></div>';return}
+if(!tab||!tabs().some(function(t){return t[0]===tab}))tab=tabs()[0][0];
+var h='<div class="top"><div><h1>CIT Office Desk</h1><div class="sub">'+esc(me.name)+' · '+({staff:"Staff",admin:"Admin (HOD)",superadmin:"Super admin"})[me.role]+'</div></div><button class="btn g s" data-a="logout">Sign out</button></div><nav>'+tabs().map(function(t){return'<button data-a="tab" data-v="'+t[0]+'"'+(t[0]===tab?' aria-current="page"':'')+'>'+t[1]+'</button>'}).join("")+'</nav>';
+if(msg)h+='<div class="err" role="alert">'+esc(msg)+'</div>';
+h+=({dash:vDash,tasks:vTasks,people:vPeople,leave:vLeave,mis:vMis,rep:vRep,mine:vMine})[tab]();
+a.innerHTML=h;if(tab==="tasks")boxes()}
+
+function vDash(){
+var td=today(),op=A.filter(function(x){return x.status!=="Done"}),od=op.filter(function(x){var t=tk(x.task_id);return t&&t.due<td}),ol=stf().filter(function(s){return onLeave(s.id,td)}),pl=L.filter(function(l){return l.status==="Pending"});
+var h='<div class="stats">'+[[stf().length,"Active staff"],[op.length,"Open assignments"],[od.length,"Overdue"],[ol.length,"On leave today"],[pl.length,"Leave requests waiting"],[M.length,"Misconduct reports"]].map(function(s){return'<div class="stat"><b>'+s[0]+'</b><span>'+s[1]+'</span></div>'}).join("")+'</div>';
+h+='<div class="card"><h2>Overdue</h2>'+(od.length?'<div class="tw"><table><tr><th>Task</th><th>Staff</th><th>Deadline</th><th>Status</th></tr>'+od.map(function(x){var t=tk(x.task_id);return'<tr><td>'+esc(t.title)+'</td><td>'+esc(x.name)+'</td><td class="od">'+fmt(t.due)+'</td><td>'+esc(x.status)+'</td></tr>'}).join("")+'</table></div>':'<p class="empty">Nothing overdue.</p>')+'</div>';
+h+='<div class="card"><h2>On leave today</h2><p>'+(ol.length?ol.map(function(s){return esc(s.name)}).join(", "):'<span class="empty">Everyone is in.</span>')+'</p></div>';return h}
+function tk(id){return T.filter(function(t){return t.id===id})[0]}
+
+function vTasks(){
+var h='<div class="card"><h2>Assign a task</h2><div class="row"><div><label for="tt">Title</label><input id="tt"></div><div><label for="ty">Duty type</label><select id="ty">'+["Lesson plan submission","Practical completion","Monthly report","Test report","Syllabus review","Student activity","Other duty"].map(function(x){return'<option>'+x+'</option>'}).join("")+'</select></div><div><label for="td">Deadline date</label><input id="td" type="date"></div><div><label for="tm">Deadline time</label><input id="tm" type="time" value="14:00"></div><div><label for="tp">Priority</label><select id="tp"><option>High</option><option selected>Medium</option><option>Low</option></select></div><div><label for="ts">Assign to</label><select id="ts"><option value="single">One staff member</option><option value="partial">Selected staff</option><option value="all">Whole department</option></select></div></div><div class="chk" id="tb" style="margin-top:.7rem"></div><div class="acts"><button class="btn" data-a="addtask">Assign task</button></div></div>';
+h+='<div class="card"><h2>All tasks</h2>'+(T.length?T.map(function(t){var as=A.filter(function(x){return x.task_id===t.id});return'<div class="tk"><b>'+esc(t.title)+'</b> <span class="tag">'+esc(t.scope==="all"?"Whole department":t.scope==="partial"?"Selected staff":"One staff")+'</span> <span class="'+(t.pri==="High"?"hi":"note")+'">'+esc(t.pri)+'</span><div class="note">'+esc(t.type)+' · Deadline '+fmt(t.due)+' '+esc(t.time)+'</div><div class="tw"><table>'+as.map(function(x){return'<tr><td>'+esc(x.name)+'</td><td><select data-st="'+x.id+'">'+ST.map(function(s){return'<option'+(s===x.status?" selected":"")+'>'+s+'</option>'}).join("")+'</select></td><td>'+esc(x.note)+'</td><td>'+(x.img?'<button class="btn s g" data-a="img" data-v="'+x.id+'">Photo</button>':'')+'</td></tr>'}).join("")+'</table></div><button class="btn s g" data-a="deltask" data-v="'+t.id+'" style="margin-top:.5rem">Delete task</button></div>'}).join(""):'<p class="empty">No tasks yet.</p>')+'</div>';return h}
+function boxes(){var el=$("tb");if(!el)return;var sc=$("ts").value,d=$("td").value;if(sc==="all"){el.innerHTML='<span class="note">This task goes to all '+stf().length+' active staff members.</span>';return}
+el.innerHTML=(stf().length?stf().map(function(s){var ok=avail(s,d);return'<label><input type="'+(sc==="single"?"radio":"checkbox")+'" name="sb" value="'+s.id+'"> '+esc(s.name)+(ok?"":' <span class="hi">(not available)</span>')+'</label>'}).join(""):'<span class="note">Add staff under Staff & accounts first.</span>')}
+
+function vPeople(){var sup=me.role==="superadmin";
+var h='<div class="card"><h2>Add account</h2><div class="row"><div><label for="pn">Full name</label><input id="pn"></div><div><label for="pu">Username</label><input id="pu" autocapitalize="none"></div><div><label for="pw">Password</label><input id="pw" type="text" autocomplete="off"></div><div><label for="pr">Role</label><select id="pr"><option value="staff">Staff</option>'+(sup?'<option value="admin">Admin (HOD)</option><option value="superadmin">Super admin</option>':'')+'</select></div></div><div class="chk" style="margin-top:.7rem">Available days: '+[1,2,3,4,5,6,0].map(function(d){return'<label><input type="checkbox" class="pd" value="'+d+'"'+(d>0&&d<6?" checked":"")+'>'+DAYS[d]+'</label>'}).join("")+'</div><div class="acts"><button class="btn" data-a="adduser">Create account</button></div></div>';
+h+='<div class="card"><h2>Accounts</h2><div class="tw"><table><tr><th>Name</th><th>Username</th><th>Role</th><th>Available days</th><th>Status</th><th></th></tr>'+U.map(function(u){var can=u.role==="staff"||sup;return'<tr><td>'+esc(u.name)+'</td><td>'+esc(u.username)+'</td><td>'+esc(u.role)+'</td><td>'+String(u.days).split(",").filter(Boolean).map(function(d){return DAYS[d]}).join(", ")+'</td><td>'+(u.active?"Active":'<span class="od">Disabled</span>')+'</td><td>'+(can?'<button class="btn s g" data-a="toggle" data-v="'+u.id+'">'+(u.active?"Disable":"Enable")+'</button> <button class="btn s g" data-a="reset" data-v="'+u.id+'">Reset password</button> <button class="btn s g" data-a="days" data-v="'+u.id+'">Days</button>':'')+'</td></tr>'}).join("")+'</table></div></div>';return h}
+
+function vLeave(){var h='<div class="card"><h2>'+(adm()?"Record a leave":"Apply for leave")+'</h2><div class="row">'+(adm()?'<div><label for="lw">Staff member</label><select id="lw">'+stf().map(function(s){return'<option value="'+s.id+'">'+esc(s.name)+'</option>'}).join("")+'</select></div>':'')+'<div><label for="lf">From</label><input id="lf" type="date"></div><div><label for="lt">To</label><input id="lt" type="date"></div><div><label for="ly">Type</label><select id="ly"><option>Casual</option><option>Medical</option><option>Earned</option><option>Official duty</option><option>Other</option></select></div></div><label for="lr" style="margin-top:.7rem">Reason</label><textarea id="lr"></textarea><div class="acts"><button class="btn" data-a="addleave">'+(adm()?"Save approved leave":"Send application")+'</button></div></div>';
+h+='<div class="card"><h2>Leave records</h2>'+(L.length?'<div class="tw"><table><tr>'+(adm()?'<th>Staff</th>':'')+'<th>From</th><th>To</th><th>Days</th><th>Type</th><th>Reason</th><th>Status</th>'+(adm()?'<th></th>':'')+'</tr>'+L.map(function(l){return'<tr>'+(adm()?'<td>'+esc(l.name)+'</td>':'')+'<td>'+fmt(l.from_d)+'</td><td>'+fmt(l.to_d)+'</td><td>'+ndays(l.from_d,l.to_d)+'</td><td>'+esc(l.type)+'</td><td>'+esc(l.reason)+'</td><td>'+esc(l.status)+'</td>'+(adm()?'<td>'+(l.status==="Pending"?'<button class="btn s" data-a="decide" data-v="'+l.id+'" data-s="Approved">Approve</button> <button class="btn s g" data-a="decide" data-v="'+l.id+'" data-s="Rejected">Reject</button>':'')+'</td>':'')+'</tr>'}).join("")+'</table></div>':'<p class="empty">No leave records.</p>')+'</div>';return h}
+
+function vMis(){var h='<div class="card"><h2>New misconduct report</h2><div class="row"><div><label for="mw">Staff member</label><select id="mw">'+stf().map(function(s){return'<option value="'+s.id+'">'+esc(s.name)+'</option>'}).join("")+'</select></div><div><label for="md">Date of incident</label><input id="md" type="date" value="'+today()+'"></div><div><label for="mc">Category</label><select id="mc"><option>Absence without leave</option><option>Late attendance</option><option>Neglect of duty</option><option>Disrespect or discipline</option><option>Other</option></select></div></div><label for="mx" style="margin-top:.7rem">What happened</label><textarea id="mx"></textarea><label for="ma" style="margin-top:.5rem">Action taken</label><input id="ma" placeholder="e.g. Verbal warning, explanation called"><div class="acts"><button class="btn" data-a="addmis">Save report</button></div></div>';
+h+='<div class="card"><h2>Reports on file</h2><p class="note">Visible to admin and super admin only.</p>'+(M.length?'<div class="tw"><table><tr><th>Staff</th><th>Date</th><th>Category</th><th>Details</th><th>Action</th><th>By</th><th></th></tr>'+M.map(function(m){return'<tr><td>'+esc(m.name)+'</td><td>'+fmt(m.date)+'</td><td>'+esc(m.category)+'</td><td>'+esc(m.descr)+'</td><td>'+esc(m.action)+'</td><td>'+esc(m.reporter)+'</td><td>'+(me.role==="superadmin"?'<button class="btn s g" data-a="delmis" data-v="'+m.id+'">Delete</button>':'')+'</td></tr>'}).join("")+'</table></div>':'<p class="empty">No reports.</p>')+'</div>';return h}
+
+function vMine(){var td=today();return'<div class="card"><h2>My tasks</h2>'+(A.length?A.map(function(x){var t=tk(x.task_id);if(!t)return"";return'<div class="tk"><b>'+esc(t.title)+'</b> <span class="'+(t.pri==="High"?"hi":"note")+'">'+esc(t.pri)+'</span><div class="'+(x.status!=="Done"&&t.due<td?"od":"note")+'">Deadline '+fmt(t.due)+' '+esc(t.time)+(x.status!=="Done"&&t.due<td?" (overdue)":"")+'</div><div class="row" style="margin-top:.5rem"><div><label for="s'+x.id+'">Status</label><select id="s'+x.id+'">'+ST.map(function(s){return'<option'+(s===x.status?" selected":"")+'>'+s+'</option>'}).join("")+'</select></div><div><label for="n'+x.id+'">Note (optional)</label><input id="n'+x.id+'" value="'+esc(x.note)+'"></div><div><label for="f'+x.id+'">Photo of work (optional)</label><input id="f'+x.id+'" type="file" accept="image/*" data-f="'+x.id+'"></div></div><div class="acts"><button class="btn s" data-a="save" data-v="'+x.id+'">Save update</button>'+(x.img?'<button class="btn s g" data-a="img" data-v="'+x.id+'">View photo</button><button class="btn s g" data-a="rmimg" data-v="'+x.id+'">Remove photo</button>':'')+'</div></div>'}).join(""):'<p class="empty">No tasks assigned to you.</p>')+'</div>'}
+
+function dataset(k){var td=today();
+if(k==="tasks")return{c:["Task","Duty","Staff","Deadline","Priority","Scope","Status","Note","Updated","Photo"],r:A.map(function(x){var t=tk(x.task_id)||{};return[t.title,t.type,x.name,t.due+" "+t.time,t.pri,t.scope,x.status,x.note,x.updated,x.img?"Yes":"No"]})};
+if(k==="leave")return{c:["Staff","From","To","Days","Type","Reason","Status"],r:L.map(function(l){return[l.name,l.from_d,l.to_d,ndays(l.from_d,l.to_d),l.type,l.reason,l.status]})};
+if(k==="mis")return{c:["Staff","Date","Category","Details","Action","Reported by"],r:M.map(function(m){return[m.name,m.date,m.category,m.descr,m.action,m.reporter]})};
+if(k==="accounts")return{c:["Username","Name","Role","Active","Available days","Created"],r:U.map(function(u){return[u.username,u.name,u.role,u.active?"Yes":"No",String(u.days).split(",").filter(Boolean).map(function(d){return DAYS[d]}).join(" "),u.created]})};
+return{c:["Staff","Assigned","Done","In progress","Pending","Overdue","Leave days (approved)","Misconduct reports"],r:stf().map(function(s){var mine=A.filter(function(x){return x.user_id===s.id}),c=function(st){return mine.filter(function(x){return x.status===st}).length};return[s.name,mine.length,c("Done"),c("In progress"),c("Pending"),mine.filter(function(x){var t=tk(x.task_id);return x.status!=="Done"&&t&&t.due<td}).length,L.filter(function(l){return l.user_id===s.id&&l.status==="Approved"}).reduce(function(n,l){return n+ndays(l.from_d,l.to_d)},0),M.filter(function(m){return m.user_id===s.id}).length]})}}
+function vRep(){var opts=[["tasks","Task records"],["summary","Staff performance summary"],["leave","Leave records"],["mis","Misconduct reports"]];if(me.role==="superadmin")opts.push(["accounts","Accounts"]);
+var d=dataset(rep);return'<div class="card"><h2>Reports and exports</h2><div class="row"><div><label for="rp">Report</label><select id="rp">'+opts.map(function(o){return'<option value="'+o[0]+'"'+(o[0]===rep?" selected":"")+'>'+o[1]+'</option>'}).join("")+'</select></div></div><div class="acts"><button class="btn g" data-a="csv">Download CSV (Excel)</button><button class="btn g" data-a="json">Download JSON</button><button class="btn g" data-a="print">Print or save as PDF</button></div></div><div class="card"><div class="tw">'+tbl(d)+'</div></div>'}
+function tbl(d){return d.r.length?'<table><tr>'+d.c.map(function(c){return'<th>'+esc(c)+'</th>'}).join("")+'</tr>'+d.r.map(function(r){return'<tr>'+r.map(function(c){return'<td>'+esc(c)+'</td>'}).join("")+'</tr>'}).join("")+'</table>':'<p class="empty">No records.</p>'}
+function dl(name,type,text){var a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type:type}));a.download=name;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)}
+function shrink(f){return new Promise(function(ok,no){var im=new Image();im.onload=function(){var s=Math.min(1,900/Math.max(im.width,im.height)),c=document.createElement("canvas");c.width=Math.round(im.width*s);c.height=Math.round(im.height*s);c.getContext("2d").drawImage(im,0,0,c.width,c.height);ok(c.toDataURL("image/jpeg",.7))};im.onerror=function(){no(new Error("Could not read that image."))};im.src=URL.createObjectURL(f)})}
+function val(i){return $(i)?$(i).value:""}
+function checked(sel){return[].slice.call(document.querySelectorAll(sel)).filter(function(x){return x.checked}).map(function(x){return+x.value})}
+function showImg(id){api("task.img",{id:+id}).then(function(r){if(!r.image)return;var o=document.createElement("div");o.className="ov";o.innerHTML='<img alt="Task status photo">';o.firstChild.src=r.image;o.onclick=function(){o.remove()};document.body.appendChild(o)}).catch(function(e){msg=e.message;draw()})}
+
+document.addEventListener("click",function(e){var b=e.target.closest("[data-a]");if(!b)return;var a=b.dataset.a,v=b.dataset.v;
+if(a==="login"){api("login",{username:val("lu"),password:val("lp")}).then(function(){return api("me")}).then(function(r){me=r.me;msg="";return load()}).then(draw).catch(function(x){msg=x.message;$("le").textContent=msg});return}
+if(a==="logout"){api("logout").then(function(){me=null;U=T=A=L=M=[];draw()});return}
+if(a==="tab"){tab=v;msg="";draw();return}
+if(a==="img"){showImg(v);return}
+if(a==="addtask"){var sc=val("ts");act(api("tasks.add",{title:val("tt"),type:val("ty"),due:val("td"),time:val("tm"),pri:val("tp"),scope:sc,ids:checked('input[name="sb"]')}));return}
+if(a==="deltask"){if(confirm("Delete this task and its updates?"))act(api("task.del",{id:+v}));return}
+if(a==="adduser"){act(api("users.add",{name:val("pn"),username:val("pu"),password:val("pw"),role:val("pr"),days:checked(".pd")}));return}
+if(a==="toggle"){var u=U.filter(function(x){return x.id===+v})[0];act(api("users.set",{id:+v,active:!u.active}));return}
+if(a==="reset"){var p=prompt("New password (6+ characters):");if(p)act(api("users.set",{id:+v,pass:p}));return}
+if(a==="days"){var u2=U.filter(function(x){return x.id===+v})[0],r=prompt("Available days as numbers (0=Sun ... 6=Sat), e.g. 1,2,3,4,5",u2.days);if(r!==null)act(api("users.set",{id:+v,days:r.split(",").map(Number).filter(function(n){return n>=0&&n<=6})}));return}
+if(a==="addleave"){act(api("leave.apply",{uid:adm()?+val("lw"):undefined,from:val("lf"),to:val("lt"),type:val("ly"),reason:val("lr")}));return}
+if(a==="decide"){act(api("leave.decide",{id:+v,status:b.dataset.s}));return}
+if(a==="addmis"){act(api("mis.add",{uid:+val("mw"),date:val("md"),category:val("mc"),descr:val("mx"),action:val("ma")}));return}
+if(a==="delmis"){if(confirm("Delete this report permanently?"))act(api("mis.del",{id:+v}));return}
+if(a==="save"){var d={id:+v,status:val("s"+v),note:val("n"+v)};if(pend[v])d.image=pend[v];act(api("task.set",d),function(){delete pend[v]});return}
+if(a==="rmimg"){act(api("task.set",{id:+v,status:val("s"+v),note:val("n"+v),image:""}));return}
+if(a==="csv"){var s=dataset(rep);dl("cit-"+rep+"-"+today()+".csv","text/csv;charset=utf-8","\ufeff"+[s.c].concat(s.r).map(function(r){return r.map(function(c){return'"'+String(c==null?"":c).replace(/"/g,'""')+'"'}).join(",")}).join("\r\n"));return}
+if(a==="json"){var s2=dataset(rep);dl("cit-"+rep+"-"+today()+".json","application/json",JSON.stringify(s2.r.map(function(r){var o={};s2.c.forEach(function(c,i){o[c]=r[i]});return o}),null,2));return}
+if(a==="print"){$("pa").innerHTML='<h2>CIT Department, GCT Kamalia: '+esc(rep)+' report</h2><p>Printed '+fmt(today())+' by '+esc(me.name)+'</p>'+tbl(dataset(rep));window.print()}
+});
+document.addEventListener("change",function(e){var t=e.target;
+if(t.id==="td"||t.id==="ts")boxes();
+if(t.id==="rp"){rep=t.value;draw()}
+if(t.dataset&&t.dataset.st){var x=A.filter(function(y){return y.id===+t.dataset.st})[0];act(api("task.set",{id:x.id,status:t.value,note:x.note}))}
+if(t.dataset&&t.dataset.f&&t.files[0]){shrink(t.files[0]).then(function(d){pend[t.dataset.f]=d}).catch(function(x){msg=x.message;draw()})}
+});
+document.addEventListener("keydown",function(e){if(e.key==="Enter"&&(e.target.id==="lu"||e.target.id==="lp"))document.querySelector('[data-a="login"]').click()});
+api("me").then(function(r){me=r.me;return load()}).then(draw).catch(function(){me=null;draw()});
+})();
+</script></body></html>
