@@ -60,6 +60,10 @@ module.exports = async (req, res) => {
 
     if (a === 'me') return send(res, 200, { me: u });
 
+    if (a === 'progress') {
+      const td = new Date(Date.now() + 5 * 3600e3).toISOString().slice(0, 10);
+      return send(res, 200, { rows: await q("SELECT u.id,u.name,count(a.id)::int AS total,(count(*) FILTER (WHERE a.status='Done'))::int AS done,(count(*) FILTER (WHERE a.status<>'Done' AND t.due<$1))::int AS late FROM users u LEFT JOIN assign a ON a.user_id=u.id LEFT JOIN tasks t ON t.id=a.task_id WHERE u.role='staff' AND u.active GROUP BY u.id,u.name ORDER BY u.name", [td]) });
+    }
     if (a === 'users.list') {
       if (!ADM) return deny();
       return send(res, 200, { users: await q('SELECT id,username,name,role,days,active,created FROM users ORDER BY role DESC,name') });
