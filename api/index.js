@@ -3,7 +3,7 @@ const { neon } = require('@neondatabase/serverless');
 const c = require('crypto');
 const SEC = process.env.AUTH_SECRET || '';
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
-const q = (t, p) => sql.query(t, p || []);
+const q = (t, p) => (sql.query ? sql.query(t, p || []) : sql(t, p || []));
 const ST = ['Pending', 'In progress', 'Done'];
 let ready;
 
