@@ -36,6 +36,22 @@ th,td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line);vertical
 .login{max-width:22rem;margin:12vh auto}
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;z-index:9;padding:1rem}.ov img{max-width:100%;max-height:90vh;border-radius:8px}
 .tk{border:1px solid var(--line);border-radius:8px;padding:.8rem;margin-bottom:.7rem}
+
+.hero{background:linear-gradient(135deg,#0d7a6b,#12304a);color:#fff;border-radius:14px;padding:1.2rem 1.4rem;margin:.4rem 0 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+.hero h2{font-size:1.4rem;margin:0}.hero p{margin:.2rem 0 0;opacity:.85;font-size:.92rem}
+.hero .pill{background:rgba(255,255,255,.16);border-radius:99px;padding:.3rem .8rem;font-size:.85rem;font-weight:600}
+.card{box-shadow:0 1px 3px rgba(18,48,74,.08)}
+.stat{border-left:4px solid var(--c,#0d7a6b)}
+.g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:1rem}
+@media(max-width:760px){.g2{grid-template-columns:1fr}}
+.dn{display:flex;flex-direction:column;align-items:center;gap:.6rem}
+.dn .c{position:relative;width:170px;height:170px}.dn .c b{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:1.9rem}.dn .c span{font-size:.75rem;color:var(--mute);font-weight:400}
+.lg{display:flex;gap:.9rem;flex-wrap:wrap;font-size:.82rem;color:var(--mute)}.lg i{display:inline-block;width:.7rem;height:.7rem;border-radius:3px;margin-right:.3rem;vertical-align:-1px}
+.br{display:grid;grid-template-columns:8rem 1fr 3rem;align-items:center;gap:.6rem;margin:.55rem 0;font-size:.9rem}
+.br .bn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.br .bp{text-align:right;font-weight:600}
+.bar{display:flex;height:14px;border-radius:99px;overflow:hidden;background:var(--line)}.bar span{display:block;height:100%}
+.me{font-weight:700;color:var(--teal)}
+@media(max-width:520px){.br{grid-template-columns:5.5rem 1fr 2.6rem}}
 #pa{display:none}
 @media print{body>.wrap,.ov{display:none!important}#pa{display:block;padding:1rem;color:#000;background:#fff}#pa table{font-size:11px}#pa th,#pa td{border:1px solid #999}}
 </style></head><body>
@@ -43,7 +59,7 @@ th,td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line);vertical
 <script>
 (function(){
 var DAYS=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"],ST=["Pending","In progress","Done"];
-var me=null,tab="",U=[],T=[],A=[],L=[],M=[],pend={},msg="",rep="tasks",$=function(i){return document.getElementById(i)};
+var me=null,tab="",P=[],U=[],T=[],A=[],L=[],M=[],pend={},msg="",rep="tasks",$=function(i){return document.getElementById(i)};
 function esc(s){var d=document.createElement("div");d.textContent=s==null?"":String(s);return d.innerHTML}
 function today(){var d=new Date(),m=d.getMonth()+1,x=d.getDate();return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(x<10?"0":"")+x}
 function fmt(s){if(!s)return"";var d=new Date(s+"T00:00:00");return DAYS[d.getDay()]+" "+d.getDate()+" "+d.toLocaleString("en",{month:"short"})+" "+d.getFullYear()}
@@ -53,9 +69,9 @@ function stf(){return U.filter(function(u){return u.role==="staff"&&u.active})}
 function onLeave(id,d){return L.some(function(l){return l.user_id===id&&l.status==="Approved"&&l.from_d<=d&&d<=l.to_d})}
 function avail(u,d){if(!d)return true;var w=new Date(d+"T00:00:00").getDay();return String(u.days).split(",").indexOf(String(w))>=0&&!onLeave(u.id,d)}
 function api(a,d){var o=Object.assign({a:a},d||{});return fetch("/api",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)}).then(function(r){return r.json().catch(function(){return{e:"Server error."}}).then(function(j){if(!r.ok){if(r.status===401&&a!=="login"&&a!=="me"){me=null;draw()}throw new Error(j.e||"Error")}return j})})}
-function load(){var p=[api("tasks.list"),api("leave.list")];if(adm())p.push(api("users.list"),api("mis.list"));return Promise.all(p).then(function(r){T=r[0].tasks;A=r[0].as;L=r[1].leaves;if(adm()){U=r[2].users;M=r[3].mis}})}
+function load(){var p=[api("tasks.list"),api("leave.list"),api("progress")];if(adm())p.push(api("users.list"),api("mis.list"));return Promise.all(p).then(function(r){T=r[0].tasks;A=r[0].as;L=r[1].leaves;P=r[2].rows;if(adm()){U=r[3].users;M=r[4].mis}})}
 function act(p,ok){msg="";return p.then(function(){return load()}).then(function(){if(ok)ok();draw()}).catch(function(e){msg=e.message;draw()})}
-function tabs(){return adm()?[["dash","Dashboard"],["tasks","Tasks"],["people","Staff & accounts"],["leave","Leave"],["mis","Misconduct"],["rep","Reports"]]:[["mine","My tasks"],["leave","My leave"]]}
+function tabs(){return adm()?[["dash","Dashboard"],["tasks","Tasks"],["people","Staff & accounts"],["leave","Leave"],["mis","Misconduct"],["rep","Reports"]]:[["team","Dashboard"],["mine","My tasks"],["leave","My leave"]]}
 
 function draw(){
 var a=$("app");
@@ -63,14 +79,23 @@ if(!me){a.innerHTML='<div class="card login"><h1>CIT Office Desk</h1><p class="s
 if(!tab||!tabs().some(function(t){return t[0]===tab}))tab=tabs()[0][0];
 var h='<div class="top"><div><h1>CIT Office Desk</h1><div class="sub">'+esc(me.name)+' · '+({staff:"Staff",admin:"Admin (HOD)",superadmin:"Super admin"})[me.role]+'</div></div><button class="btn g s" data-a="logout">Sign out</button></div><nav>'+tabs().map(function(t){return'<button data-a="tab" data-v="'+t[0]+'"'+(t[0]===tab?' aria-current="page"':'')+'>'+t[1]+'</button>'}).join("")+'</nav>';
 if(msg)h+='<div class="err" role="alert">'+esc(msg)+'</div>';
-h+=({dash:vDash,tasks:vTasks,people:vPeople,leave:vLeave,mis:vMis,rep:vRep,mine:vMine})[tab]();
+h+=({dash:vDash,team:vTeam,tasks:vTasks,people:vPeople,leave:vLeave,mis:vMis,rep:vRep,mine:vMine})[tab]();
 a.innerHTML=h;if(tab==="tasks")boxes()}
 
-function vDash(){
-var td=today(),op=A.filter(function(x){return x.status!=="Done"}),od=op.filter(function(x){var t=tk(x.task_id);return t&&t.due<td}),ol=stf().filter(function(s){return onLeave(s.id,td)}),pl=L.filter(function(l){return l.status==="Pending"});
-var h='<div class="stats">'+[[stf().length,"Active staff"],[op.length,"Open assignments"],[od.length,"Overdue"],[ol.length,"On leave today"],[pl.length,"Leave requests waiting"],[M.length,"Misconduct reports"]].map(function(s){return'<div class="stat"><b>'+s[0]+'</b><span>'+s[1]+'</span></div>'}).join("")+'</div>';
-h+='<div class="card"><h2>Overdue</h2>'+(od.length?'<div class="tw"><table><tr><th>Task</th><th>Staff</th><th>Deadline</th><th>Status</th></tr>'+od.map(function(x){var t=tk(x.task_id);return'<tr><td>'+esc(t.title)+'</td><td>'+esc(x.name)+'</td><td class="od">'+fmt(t.due)+'</td><td>'+esc(x.status)+'</td></tr>'}).join("")+'</table></div>':'<p class="empty">Nothing overdue.</p>')+'</div>';
-h+='<div class="card"><h2>On leave today</h2><p>'+(ol.length?ol.map(function(s){return esc(s.name)}).join(", "):'<span class="empty">Everyone is in.</span>')+'</p></div>';return h}
+var COL={d:"#0d7a6b",o:"#3b82f6",l:"#dc2626"};
+function sum(rows){var d=0,l=0,t=0;rows.forEach(function(r){d+=r.done;l+=r.late;t+=r.total});return{d:d,l:l,o:t-d-l,t:t}}
+function pct(s){return s.t?Math.round(s.d/s.t*100):0}
+function donut(s){var tot=s.t||1,off=25,g='<svg viewBox="0 0 42 42" width="170" height="170" role="img" aria-label="Completion chart"><circle cx="21" cy="21" r="15.9155" fill="none" stroke="var(--line)" stroke-width="5"/>';[[s.d,COL.d],[s.o,COL.o],[s.l,COL.l]].forEach(function(x){if(!x[0])return;var n=x[0]/tot*100;g+='<circle cx="21" cy="21" r="15.9155" fill="none" stroke="'+x[1]+'" stroke-width="5" stroke-dasharray="'+n+' '+(100-n)+'" stroke-dashoffset="'+off+'"/>';off-=n});return'<div class="dn"><div class="c">'+g+'</svg><b>'+pct(s)+'%<span>completed</span></b></div>'+legend(s)+'</div>'}
+function legend(s){return'<div class="lg"><span><i style="background:'+COL.d+'"></i>Done '+s.d+'</span><span><i style="background:'+COL.o+'"></i>Open '+s.o+'</span><span><i style="background:'+COL.l+'"></i>Overdue '+s.l+'</span></div>'}
+function bars(rows){if(!rows.length)return'<p class="empty">No staff yet.</p>';return rows.map(function(r){var o=r.total-r.done-r.late,w=function(n){return r.total?n/r.total*100:0},p=r.total?Math.round(r.done/r.total*100):0;return'<div class="br"><span class="bn'+(me&&r.id===me.id?" me":"")+'" title="'+esc(r.name)+'">'+esc(r.name)+'</span><div class="bar" role="img" aria-label="'+esc(r.name)+': '+r.done+' of '+r.total+' done">'+(r.total?'<span style="width:'+w(r.done)+'%;background:'+COL.d+'"></span><span style="width:'+w(o)+'%;background:'+COL.o+'"></span><span style="width:'+w(r.late)+'%;background:'+COL.l+'"></span>':'')+'</div><span class="bp">'+(r.total?p+"%":"-")+'</span></div>'}).join("")}
+function soon(list){var td=today(),e=new Date();e.setDate(e.getDate()+7);var lim=e.getFullYear()+"-"+("0"+(e.getMonth()+1)).slice(-2)+"-"+("0"+e.getDate()).slice(-2);var r=list.filter(function(x){var t=tk(x.task_id);return x.status!=="Done"&&t&&t.due<=lim}).sort(function(a,b){return tk(a.task_id).due<tk(b.task_id).due?-1:1});return r.length?'<div class="tw"><table><tr><th>Task</th>'+(adm()?'<th>Staff</th>':'')+'<th>Deadline</th></tr>'+r.slice(0,8).map(function(x){var t=tk(x.task_id);return'<tr><td>'+esc(t.title)+'</td>'+(adm()?'<td>'+esc(x.name)+'</td>':'')+'<td class="'+(t.due<td?"od":"")+'">'+fmt(t.due)+(t.due<td?" (overdue)":"")+'</td></tr>'}).join("")+'</table></div>':'<p class="empty">Nothing due in the next 7 days.</p>'}
+function hero(t,s){return'<div class="hero"><div><h2>'+t+'</h2><p>CIT Department · Government College of Technology, Kamalia</p></div><span class="pill">'+fmt(today())+'</span></div>'}
+function vDash(){var td=today(),s=sum(P),ol=stf().filter(function(x){return onLeave(x.id,td)}),pl=L.filter(function(l){return l.status==="Pending"});
+var h=hero("Department dashboard")+'<div class="stats">'+[[stf().length,"Active staff","#0d7a6b"],[s.o+s.l,"Open assignments","#3b82f6"],[s.l,"Overdue","#dc2626"],[ol.length,"On leave today","#b26a00"],[pl.length,"Leave requests waiting","#7c3aed"],[M.length,"Misconduct reports","#64748b"]].map(function(x){return'<div class="stat" style="--c:'+x[2]+'"><b>'+x[0]+'</b><span>'+x[1]+'</span></div>'}).join("")+'</div>';
+h+='<div class="g2"><div class="card"><h2>Overall completion</h2>'+donut(s)+'</div><div class="card"><h2>Progress of every staff member</h2>'+bars(P)+legend(s)+'</div></div>';
+h+='<div class="g2"><div class="card"><h2>On leave today</h2><p>'+(ol.length?ol.map(function(x){return esc(x.name)}).join(", "):'<span class="empty">Everyone is in.</span>')+'</p></div><div class="card"><h2>Deadlines in the next 7 days</h2>'+soon(A)+'</div></div>';return h}
+function vTeam(){var td=today(),m=P.filter(function(r){return r.id===me.id})[0]||{done:0,late:0,total:0},s=sum([m]),a=sum(P);
+return hero("Welcome, "+esc(me.name))+'<div class="g2"><div class="card"><h2>My progress</h2>'+donut(s)+'</div><div class="card"><h2>Team progress</h2><p class="note">Completed share of assigned tasks for each colleague.</p>'+bars(P)+legend(a)+'</div></div><div class="card"><h2>My deadlines in the next 7 days</h2>'+soon(A)+'</div>'}
 function tk(id){return T.filter(function(t){return t.id===id})[0]}
 
 function vTasks(){
