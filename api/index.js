@@ -5,6 +5,8 @@ const SEC = process.env.AUTH_SECRET || '';
 const sql = process.env.DATABASE_URL ? neon(process.env.DATABASE_URL) : null;
 const q = (t, p) => (sql.query ? sql.query(t, p || []) : sql(t, p || []));
 const ST = ['Pending', 'In progress', 'Done'];
+const NOW = "to_char(now() at time zone 'Asia/Karachi','YYYY-MM-DD HH24:MI')";
+const MUT = { 'users.add': 'Account created', 'users.set': 'Account changed', 'users.edit': 'Staff details edited', 'tasks.add': 'Task assigned', 'task.set': 'Task status updated', 'task.del': 'Task deleted', 'leave.apply': 'Leave recorded', 'leave.decide': 'Leave decision', 'mis.add': 'Misconduct report filed', 'mis.del': 'Misconduct report deleted', 'tutors.save': 'Tutor assignment saved', 'tutors.del': 'Tutor assignment removed', 'tt.save': 'Timetable entry saved', 'tt.del': 'Timetable entry removed', 'notes.add': 'Note added' };
 let ready;
 
 function init() {
@@ -15,6 +17,11 @@ function init() {
     await q(`CREATE TABLE IF NOT EXISTS assign(id serial PRIMARY KEY, task_id int NOT NULL, user_id int NOT NULL, status text DEFAULT 'Pending', note text DEFAULT '', image text, updated text DEFAULT ${now})`);
     await q(`CREATE TABLE IF NOT EXISTS leaves(id serial PRIMARY KEY, user_id int NOT NULL, from_d text, to_d text, type text, reason text, status text DEFAULT 'Pending', decided_by int, created text DEFAULT ${now})`);
     await q(`CREATE TABLE IF NOT EXISTS misconduct(id serial PRIMARY KEY, user_id int NOT NULL, date text, category text, descr text, action text, reported_by int, created text DEFAULT ${now})`);
+    for (const col of ["designation text DEFAULT ''", "subjects text DEFAULT ''", "phone text DEFAULT ''", "email text DEFAULT ''", "updated text", "updated_by text"]) await q(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ${col}`);
+    await q(`CREATE TABLE IF NOT EXISTS tutors(id serial PRIMARY KEY, user_id int NOT NULL, class_name text, year text, section text, since text, created text DEFAULT ${now}, updated text, updated_by text)`);
+    await q(`CREATE TABLE IF NOT EXISTS tt(id serial PRIMARY KEY, user_id int NOT NULL, day int, t_from text, t_to text, subject text, class_name text, room text, created text DEFAULT ${now}, updated text, updated_by text)`);
+    await q(`CREATE TABLE IF NOT EXISTS notes(id serial PRIMARY KEY, ref text, ref_id int, user_id int, body text, created text DEFAULT ${now})`);
+    await q(`CREATE TABLE IF NOT EXISTS audit(id serial PRIMARY KEY, at text DEFAULT ${now}, user_id int, name text, action text, detail text)`);
     const n = await q('SELECT count(*)::int AS n FROM users');
     if (n[0].n === 0 && process.env.SUPERADMIN_USER && process.env.SUPERADMIN_PASS)
       await q('INSERT INTO users(username,name,role,pass,days) VALUES($1,$2,$3,$4,$5)', [process.env.SUPERADMIN_USER.toLowerCase(), 'Super Admin', 'superadmin', hash(process.env.SUPERADMIN_PASS), '1,2,3,4,5']);
@@ -31,7 +38,10 @@ function unsign(t) {
   const o = JSON.parse(Buffer.from(p, 'base64url').toString()); return o.exp > Date.now() ? o : null;
 }
 function cookie(req, k) { const m = (req.headers.cookie || '').split(/;\s*/).find(x => x.startsWith(k + '=')); return m ? m.slice(k.length + 1) : ''; }
-const send = (res, code, o) => { res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(o)); };
+const send = async (res, code, o) => {
+  if (code === 200 && res._a && MUT[res._a]) { try { await q('INSERT INTO audit(user_id,name,action,detail) VALUES($1,$2,$3,$4)', [res._u.id, res._u.name, MUT[res._a], res._d]); } catch (e) { console.error(e); } }
+  res.statusCode = code; res.setHeader('Content-Type', 'application/json'); res.setHeader('Cache-Control', 'no-store'); res.end(JSON.stringify(o));
+};
 const setTok = (res, v, age) => res.setHeader('Set-Cookie', `tok=${v}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${age}`);
 const S = v => String(v == null ? '' : v).trim().slice(0, 600);
 const D = v => /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '';
@@ -52,11 +62,13 @@ module.exports = async (req, res) => {
     if (a === 'logout') { setTok(res, '', 0); return send(res, 200, { ok: 1 }); }
 
     const t = unsign(cookie(req, 'tok'));
-    const ur = t && await q('SELECT id,username,name,role,days,active FROM users WHERE id=$1', [t.id]);
+    const ur = t && await q('SELECT id,username,name,role,days,active,designation,subjects,phone,email,updated,updated_by FROM users WHERE id=$1', [t.id]);
     const u = ur && ur[0];
     if (!u || !u.active) return send(res, 401, { e: 'Please sign in.' });
     const ADM = u.role !== 'staff', SUP = u.role === 'superadmin';
     const deny = () => send(res, 403, { e: 'Not allowed for your role.' });
+    res._a = a; res._u = u;
+    res._d = Object.entries(b).filter(([k]) => !['a', 'pass', 'password', 'image', 'text', 'descr', 'note', 'action'].includes(k)).map(([k, v]) => k + '=' + String(Array.isArray(v) ? v.join(',') : v).slice(0, 40)).join(', ').slice(0, 200);
 
     if (a === 'me') return send(res, 200, { me: u });
 
@@ -66,7 +78,7 @@ module.exports = async (req, res) => {
     }
     if (a === 'users.list') {
       if (!ADM) return deny();
-      return send(res, 200, { users: await q('SELECT id,username,name,role,days,active,created FROM users ORDER BY role DESC,name') });
+      return send(res, 200, { users: await q('SELECT id,username,name,role,days,active,designation,subjects,phone,email,updated,updated_by,created FROM users ORDER BY role DESC,name') });
     }
     if (a === 'users.add') {
       if (!ADM) return deny();
@@ -75,7 +87,7 @@ module.exports = async (req, res) => {
       const un = S(b.username).toLowerCase(), nm = S(b.name), pw = String(b.password || '');
       if (!/^[a-z0-9._-]{3,30}$/.test(un) || !nm || pw.length < 6) return send(res, 400, { e: 'Username (3-30 letters/numbers), name and a password of 6+ characters are required.' });
       const days = (Array.isArray(b.days) ? b.days : [1, 2, 3, 4, 5]).filter(x => x >= 0 && x <= 6).join(',');
-      try { await q('INSERT INTO users(username,name,role,pass,days) VALUES($1,$2,$3,$4,$5)', [un, nm, role, hash(pw), days]); }
+      try { await q(`INSERT INTO users(username,name,role,pass,days,designation,subjects,phone,email,updated,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,${NOW},$10)`, [un, nm, role, hash(pw), days, S(b.designation), S(b.subjects), S(b.phone).slice(0, 30), S(b.email).slice(0, 100), u.name]); }
       catch (e) { return send(res, 400, { e: 'That username already exists.' }); }
       return send(res, 200, { ok: 1 });
     }
@@ -136,6 +148,7 @@ module.exports = async (req, res) => {
     }
     if (a === 'task.del') {
       if (!ADM) return deny();
+      await q("DELETE FROM notes WHERE ref='task' AND ref_id IN (SELECT id FROM assign WHERE task_id=$1)", [+b.id]);
       await q('DELETE FROM assign WHERE task_id=$1', [+b.id]); await q('DELETE FROM tasks WHERE id=$1', [+b.id]);
       return send(res, 200, { ok: 1 });
     }
@@ -169,6 +182,68 @@ module.exports = async (req, res) => {
     if (a === 'mis.del') {
       if (!SUP) return deny();
       await q('DELETE FROM misconduct WHERE id=$1', [+b.id]); return send(res, 200, { ok: 1 });
+    }
+
+    if (a === 'users.edit') {
+      const id = +b.id, r = (await q('SELECT role FROM users WHERE id=$1', [id]))[0];
+      if (!r) return send(res, 404, { e: 'User not found.' });
+      if (!ADM && id !== u.id) return deny();
+      if (ADM && r.role !== 'staff' && !SUP && id !== u.id) return deny();
+      const ph = S(b.phone).slice(0, 30), em = S(b.email).slice(0, 100);
+      if (ADM) {
+        if (!S(b.name)) return send(res, 400, { e: 'Name is required.' });
+        await q(`UPDATE users SET name=$1,designation=$2,subjects=$3,phone=$4,email=$5,updated=${NOW},updated_by=$6 WHERE id=$7`, [S(b.name), S(b.designation), S(b.subjects), ph, em, u.name, id]);
+      } else await q(`UPDATE users SET phone=$1,email=$2,updated=${NOW},updated_by=$3 WHERE id=$4`, [ph, em, u.name, id]);
+      return send(res, 200, { ok: 1 });
+    }
+
+    if (a === 'tutors.list') {
+      const sel = 'SELECT t.*,u.name FROM tutors t JOIN users u ON u.id=t.user_id';
+      return send(res, 200, { tutors: ADM ? await q(sel + ' ORDER BY u.name,t.class_name') : await q(sel + ' WHERE t.user_id=$1 ORDER BY t.class_name', [u.id]) });
+    }
+    if (a === 'tutors.save') {
+      if (!ADM) return deny();
+      const uid = +b.uid;
+      if (!S(b.class_name) || !(await q("SELECT 1 FROM users WHERE id=$1 AND role='staff'", [uid])).length) return send(res, 400, { e: 'Choose a staff member and enter the class.' });
+      if (+b.id) await q(`UPDATE tutors SET user_id=$1,class_name=$2,year=$3,section=$4,since=$5,updated=${NOW},updated_by=$6 WHERE id=$7`, [uid, S(b.class_name), S(b.year), S(b.section), D(b.since), u.name, +b.id]);
+      else await q(`INSERT INTO tutors(user_id,class_name,year,section,since,updated,updated_by) VALUES($1,$2,$3,$4,$5,${NOW},$6)`, [uid, S(b.class_name), S(b.year), S(b.section), D(b.since), u.name]);
+      return send(res, 200, { ok: 1 });
+    }
+    if (a === 'tutors.del') {
+      if (!ADM) return deny();
+      await q("DELETE FROM notes WHERE ref='tutor' AND ref_id=$1", [+b.id]); await q('DELETE FROM tutors WHERE id=$1', [+b.id]);
+      return send(res, 200, { ok: 1 });
+    }
+
+    if (a === 'tt.list') return send(res, 200, { tt: await q('SELECT t.*,u.name FROM tt t JOIN users u ON u.id=t.user_id ORDER BY t.day,t.t_from') });
+    if (a === 'tt.save') {
+      if (!ADM) return deny();
+      const uid = +b.uid, day = +b.day, f = S(b.t_from), t = S(b.t_to), id = +b.id || 0, re = /^([01]\d|2[0-3]):[0-5]\d$/;
+      if (!uid || !(day >= 0 && day <= 6) || !re.test(f) || !re.test(t) || t <= f || !S(b.subject)) return send(res, 400, { e: 'Teacher, day, valid from and to times, and subject are required.' });
+      if ((await q('SELECT 1 FROM tt WHERE user_id=$1 AND day=$2 AND t_from<$4 AND t_to>$3 AND id<>$5', [uid, day, f, t, id])).length) return send(res, 400, { e: 'This teacher already has a class in that time slot.' });
+      if (S(b.room) && (await q('SELECT 1 FROM tt WHERE lower(room)=lower($1) AND day=$2 AND t_from<$4 AND t_to>$3 AND id<>$5', [S(b.room), day, f, t, id])).length) return send(res, 400, { e: 'That room is already used in that time slot.' });
+      const v = [uid, day, f, t, S(b.subject), S(b.class_name), S(b.room), u.name];
+      if (id) await q(`UPDATE tt SET user_id=$1,day=$2,t_from=$3,t_to=$4,subject=$5,class_name=$6,room=$7,updated=${NOW},updated_by=$8 WHERE id=$9`, v.concat([id]));
+      else await q(`INSERT INTO tt(user_id,day,t_from,t_to,subject,class_name,room,updated,updated_by) VALUES($1,$2,$3,$4,$5,$6,$7,${NOW},$8)`, v);
+      return send(res, 200, { ok: 1 });
+    }
+    if (a === 'tt.del') { if (!ADM) return deny(); await q('DELETE FROM tt WHERE id=$1', [+b.id]); return send(res, 200, { ok: 1 }); }
+
+    if (a === 'notes.list' || a === 'notes.add') {
+      const ref = b.ref === 'tutor' ? 'tutor' : 'task', id = +b.id;
+      const o = (await q(ref === 'task' ? 'SELECT user_id FROM assign WHERE id=$1' : 'SELECT user_id FROM tutors WHERE id=$1', [id]))[0];
+      if (!o) return send(res, 404, { e: 'Record not found.' });
+      if (!ADM && o.user_id !== u.id) return deny();
+      if (a === 'notes.add') {
+        if (!S(b.text)) return send(res, 400, { e: 'Write a note first.' });
+        await q('INSERT INTO notes(ref,ref_id,user_id,body) VALUES($1,$2,$3,$4)', [ref, id, u.id, S(b.text)]);
+        return send(res, 200, { ok: 1 });
+      }
+      return send(res, 200, { notes: await q('SELECT n.body,n.created,u.name FROM notes n JOIN users u ON u.id=n.user_id WHERE n.ref=$1 AND n.ref_id=$2 ORDER BY n.id', [ref, id]) });
+    }
+    if (a === 'audit.list') {
+      if (!ADM) return deny();
+      return send(res, 200, { audit: await q('SELECT at,name,action,detail FROM audit ORDER BY id DESC LIMIT 300') });
     }
     return send(res, 400, { e: 'Unknown action.' });
   } catch (e) {
