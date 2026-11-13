@@ -9,8 +9,8 @@ const NOW = "to_char(now() at time zone 'Asia/Karachi','YYYY-MM-DD HH24:MI')";
 const MUT = { 'users.add': 'Account created', 'users.set': 'Account changed', 'users.edit': 'Staff details edited', 'tasks.add': 'Task assigned', 'task.set': 'Task status updated', 'task.del': 'Task deleted', 'leave.apply': 'Leave recorded', 'leave.decide': 'Leave decision', 'mis.add': 'Misconduct report filed', 'mis.del': 'Misconduct report deleted', 'tutors.save': 'Tutor assignment saved', 'tutors.del': 'Tutor assignment removed', 'tt.save': 'Timetable entry saved', 'tt.del': 'Timetable entry removed', 'notes.add': 'Note added' };
 let ready;
 
-function init() {
-  return ready || (ready = (async () => {
+const SCHEMA = 'v4';
+async function ddl() {
     const now = "to_char(now() at time zone 'Asia/Karachi','YYYY-MM-DD HH24:MI')";
     await q(`CREATE TABLE IF NOT EXISTS users(id serial PRIMARY KEY, username text UNIQUE NOT NULL, name text NOT NULL, role text NOT NULL, pass text NOT NULL, days text DEFAULT '1,2,3,4,5', active boolean DEFAULT true, created text DEFAULT ${now})`);
     await q(`CREATE TABLE IF NOT EXISTS tasks(id serial PRIMARY KEY, title text NOT NULL, type text, due text, time text, pri text, scope text, created_by int, created text DEFAULT ${now})`);
@@ -22,9 +22,24 @@ function init() {
     await q(`CREATE TABLE IF NOT EXISTS tt(id serial PRIMARY KEY, user_id int NOT NULL, day int, t_from text, t_to text, subject text, class_name text, room text, created text DEFAULT ${now}, updated text, updated_by text)`);
     await q(`CREATE TABLE IF NOT EXISTS notes(id serial PRIMARY KEY, ref text, ref_id int, user_id int, body text, created text DEFAULT ${now})`);
     await q(`CREATE TABLE IF NOT EXISTS audit(id serial PRIMARY KEY, at text DEFAULT ${now}, user_id int, name text, action text, detail text)`);
+    await q("CREATE TABLE IF NOT EXISTS login_fail(k text PRIMARY KEY, n int, t bigint)");
+    await q('CREATE TABLE IF NOT EXISTS meta(k text PRIMARY KEY, v text)');
+    await q("INSERT INTO meta(k,v) VALUES('schema',$1) ON CONFLICT (k) DO UPDATE SET v=$1", [SCHEMA]);
+}
+async function schemaOk() {
+  const m = await q("SELECT to_regclass('public.meta') AS m");
+  if (!m[0].m) return false;
+  const v = await q("SELECT v FROM meta WHERE k='schema'");
+  return !!(v[0] && v[0].v === SCHEMA);
+}
+function init() {
+  return ready || (ready = (async () => {
+    if (!(await schemaOk())) {
+      try { await ddl(); } catch (e) { await new Promise(r => setTimeout(r, 400)); if (!(await schemaOk())) await ddl(); }
+    }
     const n = await q('SELECT count(*)::int AS n FROM users');
     if (n[0].n === 0 && process.env.SUPERADMIN_USER && process.env.SUPERADMIN_PASS)
-      await q('INSERT INTO users(username,name,role,pass,days) VALUES($1,$2,$3,$4,$5)', [process.env.SUPERADMIN_USER.toLowerCase(), 'Super Admin', 'superadmin', hash(process.env.SUPERADMIN_PASS), '1,2,3,4,5']);
+      await q('INSERT INTO users(username,name,role,pass,days) VALUES($1,$2,$3,$4,$5) ON CONFLICT (username) DO NOTHING', [process.env.SUPERADMIN_USER.toLowerCase(), 'Super Admin', 'superadmin', hash(process.env.SUPERADMIN_PASS), '1,2,3,4,5']);
   })().catch(e => { ready = null; throw e; }));
 }
 function hash(p) { const s = c.randomBytes(16).toString('hex'); return s + ':' + c.scryptSync(p, s, 32).toString('hex'); }
@@ -54,8 +69,16 @@ module.exports = async (req, res) => {
     const b = req.body || {}, a = b.a;
 
     if (a === 'login') {
-      const r = await q('SELECT * FROM users WHERE username=$1', [S(b.username).toLowerCase()]);
-      if (!r[0] || !r[0].active || !check(String(b.password || ''), r[0].pass)) return send(res, 401, { e: 'Wrong username or password.' });
+      const un = S(b.username).toLowerCase(), ip = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim(), key = (un + '|' + ip).slice(0, 120), nowMs = Date.now(), WIN = 15 * 60e3;
+      const f = (await q('SELECT n,t FROM login_fail WHERE k=$1', [key]))[0];
+      if (f && f.n >= 5 && nowMs - Number(f.t) < WIN) return send(res, 429, { e: 'Too many wrong attempts. Try again in ' + Math.ceil((WIN - (nowMs - Number(f.t))) / 60e3) + ' minutes.' });
+      const r = await q('SELECT * FROM users WHERE username=$1', [un]);
+      if (!r[0] || !r[0].active || !check(String(b.password || ''), r[0].pass)) {
+        const n = f && nowMs - Number(f.t) < WIN ? f.n + 1 : 1;
+        await q('INSERT INTO login_fail(k,n,t) VALUES($1,$2,$3) ON CONFLICT (k) DO UPDATE SET n=$2,t=$3', [key, n, nowMs]);
+        return send(res, 401, { e: 'Wrong username or password.' });
+      }
+      if (f) await q('DELETE FROM login_fail WHERE k=$1', [key]);
       setTok(res, sign({ id: r[0].id, exp: Date.now() + 12 * 3600e3 }), 43200);
       return send(res, 200, { ok: 1 });
     }
